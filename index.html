@@ -15,14 +15,23 @@
     }
     @keyframes floatParticle {
       0% { transform: translateY(0px) scale(0.8); opacity: 0; }
-      50% { opacity: 0.9; }
-      100% { transform: translateY(-75px) scale(1.2); opacity: 0; }
+      30% { opacity: 1; }
+      100% { transform: translateY(-85px) scale(1.3); opacity: 0; }
     }
     .floating-heart {
       position: absolute;
       animation: floatParticle 1.2s ease-out forwards;
       pointer-events: none;
       z-index: 50;
+    }
+    @keyframes popToast {
+      0% { transform: translate(-50%, 10px) scale(0.9); opacity: 0; }
+      15% { transform: translate(-50%, 0px) scale(1.03); opacity: 1; }
+      85% { transform: translate(-50%, 0px) scale(1); opacity: 1; }
+      100% { transform: translate(-50%, -8px) scale(0.95); opacity: 0; }
+    }
+    .hug-toast {
+      animation: popToast 2.2s ease-out forwards;
     }
   </style>
 </head>
@@ -68,11 +77,14 @@
 
     <!-- 互動小彩蛋：簽收抱抱按鈕 -->
     <div class="w-full mb-6 relative">
+      <!-- 龍龍回覆小氣泡 -->
+      <div id="hugToastContainer" class="absolute -top-11 left-0 right-0 pointer-events-none z-40"></div>
+
       <button id="hugBtn" 
               class="w-full bg-gradient-to-r from-[#1D4ED8] to-[#2563EB] hover:from-[#1e40af] hover:to-[#1d4ed8] active:scale-95 text-white py-3.5 px-5 rounded-2xl font-bold shadow-lg shadow-blue-600/25 flex items-center justify-center gap-2.5 transition duration-200">
         <span class="text-xl">🫂</span>
         <span>簽收特大號龍龍抱抱</span>
-        <span id="hugCount" class="bg-white/20 text-xs px-2.5 py-0.5 rounded-full backdrop-blur-sm ml-1 font-mono">128</span>
+        <span id="hugCount" class="bg-white/20 text-xs px-2.5 py-0.5 rounded-full backdrop-blur-sm ml-1 font-mono">...</span>
       </button>
       <div id="hugParticles" class="absolute inset-0 pointer-events-none flex justify-center items-center"></div>
     </div>
@@ -85,7 +97,6 @@
          class="group bg-white hover:bg-slate-50 border-2 border-blue-100 hover:border-[#1D4ED8]/40 p-4 rounded-2xl flex items-center justify-between shadow-sm hover:shadow-md transition-all active:scale-[0.98]">
         <div class="flex items-center gap-3.5">
           <div class="w-12 h-12 rounded-xl bg-blue-50 border border-blue-200/60 flex items-center justify-center group-hover:scale-110 transition-transform">
-            <!-- 官方 Facebook Logo -->
             <svg class="w-6 h-6 fill-[#1877F2]" viewBox="0 0 24 24">
               <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
             </svg>
@@ -123,7 +134,6 @@
          class="group bg-white hover:bg-slate-50 border-2 border-slate-100 hover:border-pink-300 p-4 rounded-2xl flex items-center justify-between shadow-sm hover:shadow-md transition-all active:scale-[0.98]">
         <div class="flex items-center gap-3.5">
           <div class="w-12 h-12 rounded-xl bg-pink-50 border border-pink-200/60 flex items-center justify-center group-hover:scale-110 transition-transform">
-            <!-- 官方 Instagram Logo -->
             <svg class="w-6 h-6 fill-[#E4405F]" viewBox="0 0 24 24">
               <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.09-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28-.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
             </svg>
@@ -156,7 +166,6 @@
          class="group bg-white hover:bg-slate-50 border-2 border-slate-100 hover:border-sky-300 p-4 rounded-2xl flex items-center justify-between shadow-sm hover:shadow-md transition-all active:scale-[0.98]">
         <div class="flex items-center gap-3.5">
           <div class="w-12 h-12 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center group-hover:scale-110 transition-transform">
-            <!-- 官方 X Logo -->
             <svg class="w-5 h-5 fill-white" viewBox="0 0 24 24">
               <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
             </svg>
@@ -181,6 +190,20 @@
       <p>🐾 拍照前歡迎先揮揮手打招呼，一起比讚拍照！</p>
     </div>
 
+    <!-- 新增：接下來會去哪裡（自動過期隱藏） -->
+    <section class="w-full mt-5 bg-white/95 border border-slate-200/80 rounded-2xl p-4 shadow-sm">
+      <div class="flex items-center justify-between mb-3">
+        <div class="font-bold text-sm text-[#0F2B5C] flex items-center gap-1.5">
+          <span class="text-base leading-none">📍</span>
+          <span>接下來會去哪裡</span>
+        </div>
+        <span class="text-[11px] font-bold text-[#F97316] bg-orange-50 px-2 py-0.5 rounded-full">出沒預告</span>
+      </div>
+      <div id="eventList" class="space-y-2.5">
+        <!-- 由下方 JavaScript 自動渲染 -->
+      </div>
+    </section>
+
   </main>
 
   <!-- 頁尾 -->
@@ -188,32 +211,169 @@
     <p>© 2026 孟孟 MonMon 🐾 All rights reserved.</p>
   </footer>
 
-  <script>
-    // 抱抱計數與動態特效
+  <!-- 核心功能腳本 -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getDatabase, ref, onValue, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+    // ==========================================
+    // 【設定區 1】接下來會去哪裡（隨時修改這裡即可）
+    // 超過 endDate 當天 23:59:59 就會自動隱藏！
+    // ==========================================
+    const UPCOMING_EVENTS = [
+      {
+        title: "高雄毛毛外拍小聚（範例）",
+        startDate: "2026-12-19",
+        endDate: "2026-12-19",
+        location: "高雄流行音樂中心",
+        tag: "毛毛出沒"
+      },
+      {
+        title: "新年獸聚活動（範例）",
+        startDate: "2027-01-16",
+        endDate: "2027-01-17",
+        location: "待公布",
+        tag: "預計參加"
+      }
+    ];
+
+    // ==========================================
+    // 【設定區 2】Firebase 連線設定（填入自己的網址就能全網同步）
+    // 沒填之前會自動使用本機模式，不影響網頁測試
+    // ==========================================
+    const FIREBASE_DATABASE_URL = ""; // 範例："https://你的專案名稱-default-rtdb.asia-southeast1.firebasedatabase.app"
+
+    // --- 渲染「接下來會去哪裡」 ---
+    function renderEvents() {
+      const container = document.getElementById('eventList');
+      const now = new Date();
+
+      // 過濾掉已經過期的活動（保留結束日當天 23:59:59 前的活動）
+      const activeEvents = UPCOMING_EVENTS.filter(ev => {
+        const end = new Date(`${ev.endDate}T23:59:59`);
+        return end >= now;
+      }).sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+
+      if (activeEvents.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-4 px-3 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-xs text-slate-500">
+            目前暫無排定行程，敬請期待下次出沒 🐾
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = activeEvents.map(ev => {
+        const dateText = ev.startDate === ev.endDate
+          ? ev.startDate.replaceAll('-', '/')
+          : `${ev.startDate.replaceAll('-', '/')} - ${ev.endDate.slice(5).replaceAll('-', '/')}`;
+
+        return `
+          <div class="bg-slate-50/90 border border-slate-100 rounded-xl p-3 flex items-center justify-between gap-2">
+            <div class="space-y-0.5">
+              <div class="font-bold text-xs text-[#0F2B5C]">${ev.title}</div>
+              <div class="text-[11px] text-slate-500">🗓️ ${dateText} · 📌 ${ev.location}</div>
+            </div>
+            <span class="shrink-0 text-[10px] font-bold bg-blue-100 text-[#1D4ED8] px-2 py-1 rounded-lg">${ev.tag}</span>
+          </div>
+        `;
+      }).join('');
+    }
+    renderEvents();
+
+    // --- 抱抱按鈕＋連線＋彩蛋邏輯 ---
     const hugBtn = document.getElementById('hugBtn');
-    const hugCount = document.getElementById('hugCount');
-    const container = document.getElementById('hugParticles');
+    const hugCountEl = document.getElementById('hugCount');
+    const particleContainer = document.getElementById('hugParticles');
+    const toastContainer = document.getElementById('hugToastContainer');
 
-    let count = parseInt(localStorage.getItem('monmon_hugs') || '128');
-    hugCount.innerText = count;
+    let currentCount = parseInt(localStorage.getItem('monmon_hugs') || '128', 10);
+    let hugRef = null;
+    let comboCount = 0;
+    let comboTimer = null;
 
-    hugBtn.addEventListener('click', (e) => {
-      count++;
-      hugCount.innerText = count;
-      localStorage.setItem('monmon_hugs', count);
+    const normalMessages = [
+      "收到龍龍大抱抱！🫂💙",
+      "嗷嗚～貼貼好開心 🐾",
+      "軟綿綿能量補充完畢 ✨",
+      "謝謝拍打餵食！🧡"
+    ];
 
+    // 初始化 Firebase 或本機模式
+    if (FIREBASE_DATABASE_URL.trim() !== "") {
+      try {
+        const app = initializeApp({ databaseURL: FIREBASE_DATABASE_URL.trim() });
+        const db = getDatabase(app);
+        hugRef = ref(db, 'monmon/hugs');
+
+        onValue(hugRef, (snapshot) => {
+          const val = snapshot.val();
+          currentCount = typeof val === 'number' ? val : 128;
+          hugCountEl.innerText = currentCount;
+        });
+      } catch (err) {
+        console.error("Firebase 初始化失敗，切換為本機模式：", err);
+        hugCountEl.innerText = currentCount;
+      }
+    } else {
+      hugCountEl.innerText = currentCount;
+    }
+
+    function showToast(text, isSpecial = false) {
+      toastContainer.innerHTML = '';
+      const toast = document.createElement('div');
+      toast.className = `hug-toast absolute left-1/2 whitespace-nowrap px-3.5 py-1.5 rounded-full text-xs font-bold shadow-md ${
+        isSpecial
+          ? 'bg-gradient-to-r from-[#F97316] to-amber-500 text-white'
+          : 'bg-white text-[#1D4ED8] border border-blue-100'
+      }`;
+      toast.innerText = text;
+      toastContainer.appendChild(toast);
+    }
+
+    function spawnParticles(amount = 1) {
       const icons = ['🐾', '💙', '🫂', '✨', '🧡'];
-      const icon = icons[Math.floor(Math.random() * icons.length)];
-      const span = document.createElement('span');
-      span.className = 'floating-heart text-2xl';
-      span.innerText = icon;
-      
-      const randomX = (Math.random() - 0.5) * 160;
-      span.style.left = `calc(50% + ${randomX}px)`;
-      span.style.top = '10px';
-      
-      container.appendChild(span);
-      setTimeout(() => span.remove(), 1200);
+      for (let i = 0; i < amount; i++) {
+        const span = document.createElement('span');
+        span.className = 'floating-heart text-2xl';
+        span.innerText = icons[Math.floor(Math.random() * icons.length)];
+        const randomX = (Math.random() - 0.5) * 180;
+        span.style.left = `calc(50% + ${randomX}px)`;
+        span.style.top = '10px';
+        particleContainer.appendChild(span);
+        setTimeout(() => span.remove(), 1200);
+      }
+    }
+
+    hugBtn.addEventListener('click', () => {
+      // 連擊判定（1.5 秒內連續點擊）
+      comboCount++;
+      clearTimeout(comboTimer);
+      comboTimer = setTimeout(() => { comboCount = 0; }, 1500);
+
+      // 更新數字（有接 Firebase 就同步到雲端，否則存本機）
+      if (hugRef) {
+        runTransaction(hugRef, (val) => (typeof val === 'number' ? val : 128) + 1);
+      } else {
+        currentCount++;
+        hugCountEl.innerText = currentCount;
+        localStorage.setItem('monmon_hugs', currentCount);
+      }
+
+      const nextDisplayCount = hugRef ? currentCount + 1 : currentCount;
+
+      // 彩蛋判定
+      if (nextDisplayCount % 100 === 0 || [88, 168, 520].includes(nextDisplayCount)) {
+        showToast(`🎉 恭喜觸發第 ${nextDisplayCount} 次幸運龍龍抱抱！`, true);
+        spawnParticles(8);
+      } else if (comboCount >= 5) {
+        showToast(`💥 龍龍能量滿格！特大號暴擊抱抱 x${comboCount}！`, true);
+        spawnParticles(5);
+      } else {
+        const msg = normalMessages[Math.floor(Math.random() * normalMessages.length)];
+        showToast(msg, false);
+        spawnParticles(1);
+      }
     });
   </script>
 </body>
