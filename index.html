@@ -75,11 +75,12 @@
       </div>
     </div>
 
-    <!-- 互動小彩蛋：簽收抱抱按鈕 -->
-    <div class="w-full mb-6 relative">
+    <!-- 互動簽到＋抱抱按鈕區塊 -->
+    <div class="w-full mb-6 relative space-y-3">
       <!-- 龍龍回覆小氣泡 -->
       <div id="hugToastContainer" class="absolute -top-11 left-0 right-0 pointer-events-none z-40"></div>
 
+      <!-- 抱抱主按鈕（不論是否留名都會 +1） -->
       <button id="hugBtn" 
               class="w-full bg-gradient-to-r from-[#1D4ED8] to-[#2563EB] hover:from-[#1e40af] hover:to-[#1d4ed8] active:scale-95 text-white py-3.5 px-5 rounded-2xl font-bold shadow-lg shadow-blue-600/25 flex items-center justify-center gap-2.5 transition duration-200">
         <span class="text-xl">🫂</span>
@@ -87,6 +88,42 @@
         <span id="hugCount" class="bg-white/20 text-xs px-2.5 py-0.5 rounded-full backdrop-blur-sm ml-1 font-mono">...</span>
       </button>
       <div id="hugParticles" class="absolute inset-0 pointer-events-none flex justify-center items-center"></div>
+
+      <!-- 簽到留名＋TOP 10 貼貼榜卡片 -->
+      <div class="bg-white/95 border border-blue-100 rounded-2xl p-3.5 shadow-sm space-y-3">
+        <!-- 暱稱簽到列 -->
+        <div class="flex items-center gap-2">
+          <input id="nicknameInput" 
+                 type="text" 
+                 maxlength="12" 
+                 placeholder="輸入暱稱上榜（不填也能直接抱抱）" 
+                 class="flex-1 min-w-0 bg-slate-50 border border-slate-200 focus:border-[#1D4ED8] focus:bg-white rounded-xl px-3 py-2 text-xs text-slate-800 outline-none transition" />
+          <button id="saveNameBtn" 
+                  type="button"
+                  class="shrink-0 bg-orange-50 hover:bg-orange-100 text-[#F97316] border border-orange-200/80 font-bold text-xs px-3 py-2 rounded-xl transition active:scale-95">
+            簽到留名
+          </button>
+        </div>
+        <div id="mySignStatus" class="text-[11px] text-slate-500 flex items-center justify-between px-0.5">
+          <span>💡 留名後按抱抱，次數會自動累積進榜單！</span>
+        </div>
+
+        <!-- TOP 10 排行榜清單 -->
+        <div class="pt-2 border-t border-slate-100">
+          <div class="flex items-center justify-between mb-2">
+            <span class="font-bold text-xs text-[#0F2B5C] flex items-center gap-1">
+              <span>🏆</span>
+              <span>龍龍貼貼簽到榜 TOP 10</span>
+            </span>
+            <button id="toggleRankBtn" type="button" class="text-[11px] font-bold text-[#1D4ED8] hover:underline hidden">
+              展開全部 ▾
+            </button>
+          </div>
+          <div id="leaderboardList" class="space-y-1.5 text-xs">
+            <div class="text-center text-slate-400 py-2 text-[11px]">載入榜單中...</div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- 社群傳送門按鈕清單 -->
@@ -190,7 +227,7 @@
       <p>🐾 拍照前歡迎先揮揮手打招呼，一起比讚拍照！</p>
     </div>
 
-    <!-- 新增：接下來會去哪裡（自動過期隱藏） -->
+    <!-- 接下來會去哪裡（自動過期隱藏） -->
     <section class="w-full mt-5 bg-white/95 border border-slate-200/80 rounded-2xl p-4 shadow-sm">
       <div class="flex items-center justify-between mb-3">
         <div class="font-bold text-sm text-[#0F2B5C] flex items-center gap-1.5">
@@ -238,8 +275,7 @@
     ];
 
     // ==========================================
-    // 【設定區 2】Firebase 連線設定（填入自己的網址就能全網同步）
-    // 沒填之前會自動使用本機模式，不影響網頁測試
+    // 【設定區 2】你的 Firebase 資料庫網址
     // ==========================================
     const FIREBASE_DATABASE_URL = "https://dragon-203c7-default-rtdb.firebaseio.com/";
 
@@ -248,7 +284,6 @@
       const container = document.getElementById('eventList');
       const now = new Date();
 
-      // 過濾掉已經過期的活動（保留結束日當天 23:59:59 前的活動）
       const activeEvents = UPCOMING_EVENTS.filter(ev => {
         const end = new Date(`${ev.endDate}T23:59:59`);
         return end >= now;
@@ -281,43 +316,178 @@
     }
     renderEvents();
 
-    // --- 抱抱按鈕＋連線＋彩蛋邏輯 ---
+    // --- Firebase 與排行榜初始化 ---
+    const app = initializeApp({ databaseURL: FIREBASE_DATABASE_URL });
+    const db = getDatabase(app);
+    const totalHugRef = ref(db, 'monmon/hugs');
+    const leaderboardRef = ref(db, 'monmon/leaderboard');
+
     const hugBtn = document.getElementById('hugBtn');
     const hugCountEl = document.getElementById('hugCount');
     const particleContainer = document.getElementById('hugParticles');
     const toastContainer = document.getElementById('hugToastContainer');
+    const nicknameInput = document.getElementById('nicknameInput');
+    const saveNameBtn = document.getElementById('saveNameBtn');
+    const mySignStatus = document.getElementById('mySignStatus');
+    const leaderboardList = document.getElementById('leaderboardList');
+    const toggleRankBtn = document.getElementById('toggleRankBtn');
 
-    let currentCount = parseInt(localStorage.getItem('monmon_hugs') || '128', 10);
-    let hugRef = null;
+    let currentTotalCount = 128;
     let comboCount = 0;
     let comboTimer = null;
+    let showAllTop10 = false;
+    let allLeaderboardItems = [];
 
+    // 讀取本機已儲存的暱稱
+    let savedNickname = (localStorage.getItem('monmon_nickname') || '').trim();
+    if (savedNickname) {
+      nicknameInput.value = savedNickname;
+    }
+
+    // 將暱稱轉成安全的 Firebase key（避免 . # $ [ ] / 造成錯誤）
+    function toSafeKey(name) {
+      return encodeURIComponent(name.trim().toLowerCase()).replace(/%/g, '_');
+    }
+
+    // 防止 XSS 顯示安全文字
+    function escapeHtml(str) {
+      return str.replace(/[&<>"']/g, (m) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[m]));
+    }
+
+    // 監聽全網總抱抱次數
+    onValue(totalHugRef, (snapshot) => {
+      const val = snapshot.val();
+      currentTotalCount = typeof val === 'number' ? val : 128;
+      hugCountEl.innerText = currentTotalCount;
+    });
+
+    // 監聽並渲染 TOP 10 排行榜
+    onValue(leaderboardRef, (snapshot) => {
+      const data = snapshot.val();
+      if (!data) {
+        allLeaderboardItems = [];
+        renderLeaderboard();
+        updateMyStatus();
+        return;
+      }
+
+      allLeaderboardItems = Object.entries(data)
+        .map(([key, item]) => ({
+          key,
+          name: item?.name || '神秘小可愛',
+          count: typeof item?.count === 'number' ? item.count : 0
+        }))
+        .filter(item => item.count > 0)
+        .sort((a, b) => b.count - a.count);
+
+      renderLeaderboard();
+      updateMyStatus();
+    });
+
+    function updateMyStatus() {
+      if (!savedNickname) {
+        mySignStatus.innerHTML = `<span>💡 留名後按抱抱，次數會自動累積進榜單！</span>`;
+        return;
+      }
+      const myKey = toSafeKey(savedNickname);
+      const myRecord = allLeaderboardItems.find(item => item.key === myKey);
+      const myCount = myRecord ? myRecord.count : 0;
+      const myRankIndex = allLeaderboardItems.findIndex(item => item.key === myKey);
+      const rankBadge = myRankIndex !== -1 ? `（目前第 ${myRankIndex + 1} 名）` : '';
+
+      mySignStatus.innerHTML = `
+        <span class="text-[#1D4ED8] font-bold">🐾 已簽到：${escapeHtml(savedNickname)}</span>
+        <span class="text-slate-600 font-medium">已抱抱 <b>${myCount}</b> 次${rankBadge}</span>
+      `;
+    }
+
+    function renderLeaderboard() {
+      const top10 = allLeaderboardItems.slice(0, 10);
+
+      if (top10.length === 0) {
+        leaderboardList.innerHTML = `
+          <div class="text-center text-slate-400 py-2.5 text-[11px]">
+            目前還沒有人簽到，快來搶頭香當第一名！🐾
+          </div>
+        `;
+        toggleRankBtn.classList.add('hidden');
+        return;
+      }
+
+      if (top10.length > 3) {
+        toggleRankBtn.classList.remove('hidden');
+        toggleRankBtn.innerText = showAllTop10 ? '收合榜單 ▴' : `展開完整 TOP ${top10.length} ▾`;
+      } else {
+        toggleRankBtn.classList.add('hidden');
+      }
+
+      const visibleList = showAllTop10 ? top10 : top10.slice(0, 3);
+      const medals = ['🥇', '🥈', '🥉'];
+
+      leaderboardList.innerHTML = visibleList.map((item, idx) => {
+        const rankIcon = idx < 3
+          ? `<span class="text-sm w-5 text-center">${medals[idx]}</span>`
+          : `<span class="text-[11px] font-mono font-bold text-slate-400 w-5 text-center">${idx + 1}</span>`;
+
+        const isMe = savedNickname && item.key === toSafeKey(savedNickname);
+        const rowBg = isMe
+          ? 'bg-blue-50/90 border-blue-200'
+          : (idx === 0 ? 'bg-amber-50/60 border-amber-100' : 'bg-slate-50/70 border-slate-100');
+
+        return `
+          <div class="flex items-center justify-between px-2.5 py-1.5 rounded-xl border ${rowBg}">
+            <div class="flex items-center gap-2 min-w-0">
+              ${rankIcon}
+              <span class="font-bold text-slate-700 truncate">${escapeHtml(item.name)}</span>
+              ${isMe ? '<span class="text-[9px] bg-[#1D4ED8] text-white px-1.5 py-0.2 rounded">你</span>' : ''}
+            </div>
+            <span class="shrink-0 font-mono text-[11px] font-bold text-[#1D4ED8]">${item.count} 次</span>
+          </div>
+        `;
+      }).join('');
+    }
+
+    toggleRankBtn.addEventListener('click', () => {
+      showAllTop10 = !showAllTop10;
+      renderLeaderboard();
+    });
+
+    // 儲存暱稱簽到
+    function handleSaveNickname() {
+      const raw = nicknameInput.value.trim().slice(0, 12);
+      if (!raw) {
+        savedNickname = '';
+        localStorage.removeItem('monmon_nickname');
+        updateMyStatus();
+        renderLeaderboard();
+        showToast("已切換為匿名抱抱模式 🐾", false);
+        return;
+      }
+      savedNickname = raw;
+      nicknameInput.value = raw;
+      localStorage.setItem('monmon_nickname', raw);
+      updateMyStatus();
+      renderLeaderboard();
+      showToast(`✨ 歡迎 ${raw} 簽到！快按抱抱累積次數吧`, false);
+    }
+
+    saveNameBtn.addEventListener('click', handleSaveNickname);
+    nicknameInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleSaveNickname();
+      }
+    });
+
+    // 氣泡提示與粒子特效
     const normalMessages = [
       "收到龍龍大抱抱！🫂💙",
       "嗷嗚～貼貼好開心 🐾",
       "軟綿綿能量補充完畢 ✨",
       "謝謝拍打餵食！🧡"
     ];
-
-    // 初始化 Firebase 或本機模式
-    if (FIREBASE_DATABASE_URL.trim() !== "") {
-      try {
-        const app = initializeApp({ databaseURL: FIREBASE_DATABASE_URL.trim() });
-        const db = getDatabase(app);
-        hugRef = ref(db, 'monmon/hugs');
-
-        onValue(hugRef, (snapshot) => {
-          const val = snapshot.val();
-          currentCount = typeof val === 'number' ? val : 128;
-          hugCountEl.innerText = currentCount;
-        });
-      } catch (err) {
-        console.error("Firebase 初始化失敗，切換為本機模式：", err);
-        hugCountEl.innerText = currentCount;
-      }
-    } else {
-      hugCountEl.innerText = currentCount;
-    }
 
     function showToast(text, isSpecial = false) {
       toastContainer.innerHTML = '';
@@ -345,24 +515,38 @@
       }
     }
 
+    // 點擊抱抱按鈕：全網總數 +1，若有簽到則個人榜單同步 +1
     hugBtn.addEventListener('click', () => {
-      // 連擊判定（1.5 秒內連續點擊）
+      // 如果使用者剛打完字沒按「簽到留名」就直接按抱抱，也自動幫他存下來
+      const inputVal = nicknameInput.value.trim().slice(0, 12);
+      if (inputVal && inputVal !== savedNickname) {
+        savedNickname = inputVal;
+        localStorage.setItem('monmon_nickname', savedNickname);
+      }
+
       comboCount++;
       clearTimeout(comboTimer);
       comboTimer = setTimeout(() => { comboCount = 0; }, 1500);
 
-      // 更新數字（有接 Firebase 就同步到雲端，否則存本機）
-      if (hugRef) {
-        runTransaction(hugRef, (val) => (typeof val === 'number' ? val : 128) + 1);
-      } else {
-        currentCount++;
-        hugCountEl.innerText = currentCount;
-        localStorage.setItem('monmon_hugs', currentCount);
+      // 1. 無論是否留名，全網總抱抱次數一定 +1
+      runTransaction(totalHugRef, (val) => (typeof val === 'number' ? val : 128) + 1);
+
+      // 2. 如果有留暱稱，同步累積進 TOP 10 排行榜
+      if (savedNickname) {
+        const userRef = ref(db, `monmon/leaderboard/${toSafeKey(savedNickname)}`);
+        runTransaction(userRef, (currentData) => {
+          if (!currentData) {
+            return { name: savedNickname, count: 1 };
+          }
+          return {
+            name: savedNickname,
+            count: (typeof currentData.count === 'number' ? currentData.count : 0) + 1
+          };
+        });
       }
 
-      const nextDisplayCount = hugRef ? currentCount + 1 : currentCount;
+      const nextDisplayCount = currentTotalCount + 1;
 
-      // 彩蛋判定
       if (nextDisplayCount % 100 === 0 || [88, 168, 520].includes(nextDisplayCount)) {
         showToast(`🎉 恭喜觸發第 ${nextDisplayCount} 次幸運龍龍抱抱！`, true);
         spawnParticles(8);
